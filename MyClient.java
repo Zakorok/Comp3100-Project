@@ -91,11 +91,7 @@ public class MyClient{
 	
 	//Use when only when expecting a result.
 	private static String ReadServer() throws Exception {
-		while(!in.ready()){
-			Thread.sleep(100); //TODO: Test timings
-		}
  		String str = "" + in.readLine(); 
-
 		if(str.isEmpty()){
 			str = "" + in.readLine();  //TODO: Understand this issue 
 		}
