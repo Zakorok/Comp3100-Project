@@ -14,7 +14,7 @@ public class MyClient{
 			SendMessage("HELO");
 			ReadServer();
 
-			//Authenticate  //TODO: Get username
+			//Authenticate  
 			SendMessage("AUTH cassandra");
 			ReadServer();
 
@@ -34,16 +34,16 @@ public class MyClient{
 			String[] largestServer = new String[1];
 			for(int i = 0; i < Integer.parseInt(info[1]); i++){ 
 				String line = ReadServer();
-				String[] serverInfo = line.split(" ");
-				int numCores = Integer.parseInt(serverInfo[4]);
+				ServerInfo serverInfo = new ServerInfo(line.split(" "));
+				int numCores = serverInfo.Cores;
 
-				if(numCores == mostCores && largestServer[0].equals(serverInfo[0])){
+				if(numCores == mostCores && largestServer[0].equals(serverInfo.Type)){
 					limit ++;
 				}
 
 				if(numCores > mostCores){
 					mostCores = numCores;
-					largestServer = serverInfo;
+					largestServer = line.split(" ");
 					limit = 0;
 				}
 			} 
