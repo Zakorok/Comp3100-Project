@@ -19,67 +19,56 @@ public class MyClient{
 			ReadServer();
 
 			SendMessage("REDY");
-			String jobData = ReadServer();
-			String[] jobInfo = jobData.split(" ");
+			String[] jobInfo = SplitRead(" ");
 			
 			SendMessage("GETS All");
-			String data = ReadServer();
-			String[] info = data.split(" ");
+			String[] info = SplitRead(" ");
+			int numServers = Integer.parseInt(info[1]);
 
 			SendMessage("OK");
 
 			//Finding the largest servers
 			int mostCores = 0;
-			int limit = 0;
-			String[] largestServer = new String[1];
-			for(int i = 0; i < Integer.parseInt(info[1]); i++){ 
-				String line = ReadServer();
-				ServerInfo serverInfo = new ServerInfo(line.split(" "));
-				int numCores = serverInfo.Cores;
+			ServerInfo largestServer = null;
+			for(int i = 0; i < numServers; i++){ 
+				ServerInfo tempServer = new ServerInfo(SplitRead(" "));
 
-				if(numCores == mostCores && largestServer[0].equals(serverInfo.Type)){
-					limit ++;
+				if(tempServer.Cores == mostCores){
+					//This is so that we only select the first one with the largest cores, specific for Stage 1
+					if(largestServer.Type.equals(tempServer.Type)){ 
+						largestServer.Limit ++;
+					}
 				}
 
-				if(numCores > mostCores){
-					mostCores = numCores;
-					largestServer = line.split(" ");
-					limit = 0;
+				if(tempServer.Cores > mostCores){
+					mostCores = tempServer.Cores;
+					largestServer = tempServer;
 				}
 			} 
 
 			SendMessage("OK");
 			ReadServer();
 
-			int serverInterateNum = 0;
+			int count = 0;
 			//SCHD jobID serverType serverID
 			while(!jobInfo[0].equals("NONE")){
-				SendMessage("SCHD " + jobInfo[2] + " " + largestServer[0] + " " + serverInterateNum);
+				SendMessage("SCHD " + jobInfo[2] + " " + largestServer.Type + " " + count);
 				ReadServer();
 
-				serverInterateNum ++; // Round Robin
-				if(serverInterateNum > limit){
-					serverInterateNum = 0;
+				count ++; // Largest Round Robin
+				if(count > largestServer.Limit){
+					count = 0;
 				}
 
-				
 				SendMessage("OK");
 				ReadServer();
 
 				SendMessage("REDY"); //TODO: Simply - recurision? (Probably not, would get memory intensive)
-				jobData = ReadServer();
-				if(jobData.isEmpty()) { //TODO: Understand this issue 
-					jobData = ReadServer(); 
-				}
-				jobInfo = jobData.split(" ");
+				jobInfo = SplitRead(" ");
 
 				while(jobInfo[0].equals("JCPL")){
 					SendMessage("REDY");
-					jobData = ReadServer();
-					if(jobData.isEmpty()) {
-						jobData = ReadServer(); 
-					}
-					jobInfo = jobData.split(" ");
+					jobInfo = SplitRead(" ");
 				}
 			}
 
@@ -95,17 +84,26 @@ public class MyClient{
 		}
 	}
 	
-	private static void SendMessage(String input) throws Exception{
+	private static void SendMessage(String input) throws Exception {
 		out.write((input + "\n").getBytes());
 		out.flush();
 	}
 	
+	//Use when only when expecting a result.
 	private static String ReadServer() throws Exception {
 		while(!in.ready()){
 			Thread.sleep(100); //TODO: Test timings
 		}
  		String str = "" + in.readLine(); 
+
+		if(str.isEmpty()){
+			str = "" + in.readLine();  //TODO: Understand this issue 
+		}
 		System.out.println("Server out: " + str);
 		return str;
+	}
+
+	private static String[] SplitRead(String regex) throws Exception {
+		return ReadServer().split(regex);
 	}
 }
