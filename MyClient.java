@@ -1,5 +1,7 @@
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
+import java.util.Collections;
 
 public class MyClient{
 	private static BufferedReader in;
@@ -8,7 +10,7 @@ public class MyClient{
 		try{
 
 			if(args.length > 0){
-
+				//TODO: Input arguments change the algorithims 
 			}
 
 			//Set up client. 
@@ -24,39 +26,8 @@ public class MyClient{
 			ReadServer();
 
 			//Main ----------------------------------
-			SendMessage("REDY");
-			JobInfo jobInfo = new JobInfo(SplitRead(" "));
-
-			while(!jobInfo.None()){
-				SendMessage("GETS Capable " + jobInfo.Core + " " + jobInfo.Memory + " " + jobInfo.Disk);
-				String[] info = SplitRead(" ");
-				int numServers = Integer.parseInt(info[1]);
-				
-
-				SendMessage("OK");
-				ServerInfo firstCapable = new ServerInfo(SplitRead(" "));
-				for(int i = 1; i < numServers; i ++){
-					ReadServer();
-				}
-				SendMessage("OK");
-				ReadServer();
-
-				SendMessage("SCHD " + jobInfo.JobID + " " + firstCapable.Type + " " + firstCapable.ID);
-				ReadServer();
-
-				SendMessage("OK");
-				ReadServer();
-				
-				SendMessage("REDY"); //TODO: Simply - recurision? (Probably not, would get memory intensive)
-				jobInfo = new JobInfo(SplitRead(" "));
-
-				while(jobInfo.JobComplete()){
-					SendMessage("REDY");
-					jobInfo = new JobInfo(SplitRead(" "));
-				}
-			}
+			MyImplementation();
 			//---------------------------------------
-
 
 			//Terminate
 			SendMessage("QUIT");
@@ -70,6 +41,78 @@ public class MyClient{
 		}
 	}
 
+	private static void MyImplementation() throws Exception {
+		SendMessage("REDY");
+		JobInfo currentJob = new JobInfo (SplitRead(" "));
+		
+		SendMessage("GETS All");
+		String[] info = SplitRead(" ");
+		int numServers = Integer.parseInt(info[1]);
+		SendMessage("OK");
+		
+		ArrayList<ServerInfo> servers = new ArrayList<>();
+		for(int i = 0; i < numServers; i++){ 
+			servers.add(new ServerInfo(SplitRead(" ")));
+		}
+		Collections.sort(servers, new SortByCore());
+
+
+		while(!currentJob.None()){
+			//Get the desired server
+			ServerInfo chosenServer = servers.get(0);
+			chosenServer.ScheduleJob(currentJob);
+
+			SendMessage("OK");
+			ReadServer();
+			
+			SendMessage("REDY"); 
+			currentJob = new JobInfo(SplitRead(" "));
+
+			if(currentJob.isComplete()){
+				for (ServerInfo server : servers) {
+					int jobIndex = server.HasJob(currentJob);
+					if(jobIndex > -1){
+						server.CompletedJob(jobIndex);
+					}
+				}
+			}
+		}
+	}
+ 
+	private static void FirstCapable() throws Exception {
+		SendMessage("REDY");
+		JobInfo jobInfo = new JobInfo(SplitRead(" "));
+
+		while(!jobInfo.None()){
+			SendMessage("GETS Capable " + jobInfo.Core + " " + jobInfo.Memory + " " + jobInfo.Disk);
+			String[] info = SplitRead(" ");
+			int numServers = Integer.parseInt(info[1]);
+			
+
+			SendMessage("OK");
+			ServerInfo firstCapable = new ServerInfo(SplitRead(" "));
+			for(int i = 1; i < numServers; i ++){
+				ReadServer();
+			}
+			SendMessage("OK");
+			ReadServer();
+
+			SendMessage("SCHD " + jobInfo.JobID + " " + firstCapable.Type + " " + firstCapable.ID);
+			ReadServer();
+
+			SendMessage("OK");
+			ReadServer();
+			
+			SendMessage("REDY"); //TODO: Simply - recurision? (Probably not, would get memory intensive)
+			jobInfo = new JobInfo(SplitRead(" "));
+
+			while(jobInfo.isComplete()){
+				SendMessage("REDY");
+				jobInfo = new JobInfo(SplitRead(" "));
+			}
+		}
+	}
+	
 	private static void LRR() throws Exception {
 		SendMessage("REDY");
 		String[] jobInfo = SplitRead(" ");
@@ -86,15 +129,15 @@ public class MyClient{
 		for(int i = 0; i < numServers; i++){ 
 			ServerInfo tempServer = new ServerInfo(SplitRead(" "));
 
-			if(tempServer.Cores == mostCores){
+			if(tempServer.TotalCores == mostCores){
 				//This is so that we only select the first one with the largest cores, specific for Stage 1
 				if(largestServer.Type.equals(tempServer.Type)){ 
 					largestServer.Limit ++;
 				}
 			}
 
-			if(tempServer.Cores > mostCores){
-				mostCores = tempServer.Cores;
+			if(tempServer.TotalCores > mostCores){
+				mostCores = tempServer.TotalCores;
 				largestServer = tempServer;
 			}
 		} 
@@ -126,7 +169,7 @@ public class MyClient{
 		}
 	}
 	
-	private static void SendMessage(String input) throws Exception {
+	static void SendMessage(String input) throws Exception {
 		out.write((input + "\n").getBytes());
 		out.flush();
 	}
