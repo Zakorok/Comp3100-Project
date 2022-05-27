@@ -2,10 +2,12 @@ import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 
 public class MyClient{
 	private static BufferedReader in;
 	private static DataOutputStream out;
+	private static Boolean Running = true;
 	public static void main(String[] args)	{
 		try{
 
@@ -45,40 +47,76 @@ public class MyClient{
 		SendMessage("REDY");
 		JobInfo currentJob = new JobInfo (SplitRead(" "));
 		
-		SendMessage("GETS All");
-		String[] info = SplitRead(" ");
-		int numServers = Integer.parseInt(info[1]);
-		SendMessage("OK");
-		
-		ArrayList<ServerInfo> servers = new ArrayList<>();
-		for(int i = 0; i < numServers; i++){ 
-			servers.add(new ServerInfo(SplitRead(" ")));
-		}
-		Collections.sort(servers, new SortByCore());
-
-
 		while(!currentJob.None()){
-			//Get the desired server
+			SendMessage("GETS Capable " + currentJob.Core + " " + currentJob.Memory + " " + currentJob.Disk);
+			String[] info = SplitRead(" ");
+			int numServers = Integer.parseInt(info[1]);
+			SendMessage("OK");
+			
+			ArrayList<ServerInfo> servers = new ArrayList<>();
+			for(int i = 0; i < numServers; i++){ 
+				servers.add(new ServerInfo(SplitRead(" ")));
+			}
+			SendMessage("OK");
+			ReadServer();
+			try{
+				//Get the desired server
+				Collections.sort(servers, new Comparator<ServerInfo>(){
+					@Override
+					public int compare(ServerInfo left, ServerInfo right){
+						try {
+						int result = 0;
+						result = left.rJobs - right.rJobs;
+						if(result != 0){
+							return result;
+						}
+						result = left.wJobs - right.rJobs;
+						
+						if(result != 0){
+							return result;
+						}
+
+						result = left.TotalCores - right.TotalCores;
+						return result;
+						
+						} catch (Exception ex){
+							throw ex; 
+						}
+					}
+			});
+		} catch (Exception ex){
+			System.out.println(ex.getMessage() + "\r\n" +ex.getStackTrace());
+		}
 			ServerInfo chosenServer = servers.get(0);
+
 			chosenServer.ScheduleJob(currentJob);
 
 			SendMessage("OK");
 			ReadServer();
-			
-			SendMessage("REDY"); 
-			currentJob = new JobInfo(SplitRead(" "));
 
-			if(currentJob.isComplete()){
-				for (ServerInfo server : servers) {
-					int jobIndex = server.HasJob(currentJob);
-					if(jobIndex > -1){
-						server.CompletedJob(jobIndex);
-					}
-				}
+			currentJob = ReadInJob();
+
+			while(currentJob.isComplete()) {
+				// for (ServerInfo server : servers) {
+				// 	int jobIndex = server.HasJob(currentJob);
+				// 	if(jobIndex > -1) {
+				// 		server.CompleteJob(jobIndex);
+				// 	}
+				// }
+				currentJob = ReadInJob();
 			}
 		}
 	}
  
+	private static JobInfo ReadInJob() throws Exception { 
+		SendMessage("REDY"); 
+		String[] jobArray = SplitRead(" ");
+		while (jobArray[0].equals("OK")){
+			jobArray = SplitRead(" ");
+		}
+		return new JobInfo(jobArray);
+	}
+
 	private static void FirstCapable() throws Exception {
 		SendMessage("REDY");
 		JobInfo jobInfo = new JobInfo(SplitRead(" "));

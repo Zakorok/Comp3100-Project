@@ -9,16 +9,16 @@ public class ServerInfo{
 	public String ID;
 	public String State;
 	public String StartTime;
-	public int TotalCores;
-	public int Memory;
-	public int Disk;
-	public String wJobs;
-	public String rJobs;
+	public Integer TotalCores;
+	public Integer Memory;
+	public Integer Disk;
+	public Integer  wJobs;
+	public Integer rJobs;
 
 	//Others
 	public int Limit;
 	public int currentCores;
-	private ArrayList<JobInfo> CurrentJobs = new ArrayList<>();
+	public ArrayList<JobInfo> CurrentJobs = new ArrayList<>();
 
 	public ServerInfo(String[] information){
 		this.Type = information[0];
@@ -28,8 +28,8 @@ public class ServerInfo{
 		this.TotalCores = Integer.parseInt(information[4]);
 		this.Memory = Integer.parseInt(information[5]);
 		this.Disk = Integer.parseInt(information[6]);
-		this.wJobs = information[7];
-		this.rJobs = information[8];
+		this.wJobs = Integer.parseInt(information[7]);
+		this.rJobs = Integer.parseInt(information[8]);
 		
 		this.Limit = 0;
 		this.currentCores = this.TotalCores;
@@ -39,6 +39,11 @@ public class ServerInfo{
 		MyClient.SendMessage("SCHD " + job.JobID + " " + this.Type + " " + this.ID);
 		this.CurrentJobs.add(job);
 		this.currentCores -= job.Core;
+	}
+
+	public void CompleteJob(int id) {
+		JobInfo job = this.CurrentJobs.remove(id);
+		currentCores += job.Core;
 	}
 
 	public int HasJob(JobInfo job){
@@ -51,11 +56,17 @@ public class ServerInfo{
 		}
 		return -1;
 	}
+	
+	public boolean CapableOfJob(JobInfo job){
+		if(TotalCores >= job.Core && Memory >= job.Memory && Disk >= job.Disk){
+			return true;
+		}
+		return false;
+	}
+
+	@Override
+    public String toString() {
+        return this.ID + " --- " + this.Type;
+    }
 }
 
-class SortByCore implements Comparator<ServerInfo> {
-	@Override // Greater cores are to be sorted higher in the list. 
-	public int compare(ServerInfo left, ServerInfo right) {
-		return right.TotalCores - left.TotalCores;
-	}
-}
