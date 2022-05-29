@@ -3,6 +3,10 @@ import java.net.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class MyClient{
 	private static BufferedReader in;
@@ -63,32 +67,33 @@ public class MyClient{
 				//Get the desired server
 				Collections.sort(servers, new Comparator<ServerInfo>(){
 					@Override
-					public int compare(ServerInfo left, ServerInfo right){
-						try {
+					public int compare(ServerInfo left, ServerInfo right){		
 						int result = 0;
-						result = left.rJobs - right.rJobs;
-						if(result != 0){
-							return result;
-						}
-						result = left.wJobs - right.rJobs;
-						
-						if(result != 0){
-							return result;
-						}
-
-						result = left.TotalCores - right.TotalCores;
+						result = left.wJobs - right.wJobs;
+						if(result == 0){
+							result = left.TotalCores - left.TotalCores;
+						}				
 						return result;
-						
-						} catch (Exception ex){
-							throw ex; 
-						}
 					}
-			});
+				});
 		} catch (Exception ex){
 			System.out.println(ex.getMessage() + "\r\n" +ex.getStackTrace());
 		}
-			ServerInfo chosenServer = servers.get(0);
-
+			ServerInfo idleServers = servers.stream()
+				.filter(s -> s.State.equals("Idle")).findFirst().orElse(null);
+			ServerInfo activeServers = servers.stream()
+				.filter(s -> s.State.equals("Active")).findFirst().orElse(null);
+			
+			ServerInfo chosenServer = null;
+			if(idleServers == null){
+				chosenServer = idleServers;
+			}
+			if(chosenServer == null){
+				chosenServer = activeServers;;
+			}
+			if(chosenServer == null){
+				chosenServer = servers.get(0);
+			}
 			chosenServer.ScheduleJob(currentJob);
 
 			SendMessage("OK");

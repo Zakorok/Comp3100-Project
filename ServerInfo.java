@@ -9,11 +9,11 @@ public class ServerInfo{
 	public String ID;
 	public String State;
 	public String StartTime;
-	public Integer TotalCores;
-	public Integer Memory;
-	public Integer Disk;
-	public Integer  wJobs;
-	public Integer rJobs;
+	public int TotalCores;
+	public int Memory;
+	public int Disk;
+	public int wJobs;
+	public int rJobs;
 
 	//Others
 	public int Limit;
