@@ -2,9 +2,12 @@ import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 
-public class ServerInfo{
-	//From ds-sim formatted
+import javax.print.attribute.standard.JobName;
+
+public class ServerInfo {
+	// From ds-sim formatted
 	public String Type;
 	public String ID;
 	public String State;
@@ -15,12 +18,10 @@ public class ServerInfo{
 	public int wJobs;
 	public int rJobs;
 
-	//Others
-	public int Limit;
+	// Others
 	public int currentCores;
-	public ArrayList<JobInfo> CurrentJobs = new ArrayList<>();
 
-	public ServerInfo(String[] information){
+	public ServerInfo(String[] information) {
 		this.Type = information[0];
 		this.ID = information[1];
 		this.State = information[2];
@@ -30,43 +31,69 @@ public class ServerInfo{
 		this.Disk = Integer.parseInt(information[6]);
 		this.wJobs = Integer.parseInt(information[7]);
 		this.rJobs = Integer.parseInt(information[8]);
-		
-		this.Limit = 0;
 		this.currentCores = this.TotalCores;
 	}
 
 	public void ScheduleJob(JobInfo job) throws Exception {
 		MyClient.SendMessage("SCHD " + job.JobID + " " + this.Type + " " + this.ID);
-		this.CurrentJobs.add(job);
-		this.currentCores -= job.Core;
 	}
 
-	public void CompleteJob(int id) {
-		JobInfo job = this.CurrentJobs.remove(id);
-		currentCores += job.Core;
-	}
+	public int ListJobs(int requiredCores) {
+		try {
+			List<JobInfo> runningJobs = new ArrayList<JobInfo>();
+			List<JobInfo> waitingJobs = new ArrayList<JobInfo>();
 
-	public int HasJob(JobInfo job){
-		int count = 0;
-		for (JobInfo jobInList : CurrentJobs) {
-			if(jobInList.JobID == job.JobID) {
-				return count;
+			MyClient.SendMessage("LSTJ " + this.Type + " " + this.ID);
+			String[] info = MyClient.SplitRead(" ");
+			int numJobs = Integer.parseInt(info[1]);
+			MyClient.SendMessage("OK");
+
+			for (int i = 0; i < numJobs; i++) {
+				JobInfo listedJob = new JobInfo(MyClient.SplitRead(" "), this.ID);
+				if (listedJob.StartTime == -1) {
+					waitingJobs.add(listedJob);
+				} else {
+					runningJobs.add(listedJob);
+				}
 			}
-			count ++;
+			MyClient.SendMessage("OK");
+			MyClient.ReadServer();
+
+			// Calculate each running job's estimated completion time
+			int nextAvaliableTime = 0;
+			for (JobInfo runningJob : runningJobs) {
+				nextAvaliableTime = runningJob.EstCompletedTime(0);
+				currentCores += runningJob.Core;
+
+				// Calculate when a waiting job is next going to run
+				if (waitingJobs.size() == 0) {
+					if (currentCores >= requiredCores) {
+						System.out.println("Server: " + this + " Estimated Finish Time: " + nextAvaliableTime);
+						return nextAvaliableTime;
+					}
+				} else {
+					List<JobInfo> future = new ArrayList<JobInfo>();
+					for (JobInfo waitingJob : waitingJobs) {
+						if (waitingJob.Core <= currentCores) {
+							currentCores -= waitingJob.Core;
+							nextAvaliableTime = waitingJob.EstCompletedTime(nextAvaliableTime);
+							future.add(waitingJob);
+						}
+					}
+					waitingJobs.removeAll(future);
+				}
+			}
+
+			return nextAvaliableTime;
+
+		} catch (Exception ex) {
+			System.out.println(ex);
+			return 1000000000;
 		}
-		return -1;
-	}
-	
-	public boolean CapableOfJob(JobInfo job){
-		if(TotalCores >= job.Core && Memory >= job.Memory && Disk >= job.Disk){
-			return true;
-		}
-		return false;
 	}
 
 	@Override
-    public String toString() {
-        return this.ID + " --- " + this.Type;
-    }
+	public String toString() {
+		return this.ID + " --- " + this.Type;
+	}
 }
-
