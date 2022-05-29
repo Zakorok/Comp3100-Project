@@ -1,13 +1,7 @@
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
-import java.util.Hashtable;
 import java.util.stream.Collectors;
-import javax.xml.parsers.DocumentBuilderFactory;
-import org.w3c.dom.Document;
-import org.w3c.dom.NodeList;
-import org.w3c.dom.Node;
-import org.w3c.dom.Element;
 
 public class MyClient {
 	private static BufferedReader in;
@@ -69,7 +63,6 @@ public class MyClient {
 					chosenServer = servers.stream().filter(s -> s.wJobs == 1).findFirst().orElse(null);
 				}
 				// Choose an active server that will execute a new job earilest
-				// Or choose a new server if it would be faster to boot one.
 				if (chosenServer == null) {
 					final int requiredCores = currentJob.Core;
 					// Servest with the smallest
@@ -85,7 +78,7 @@ public class MyClient {
 						}
 					}
 				}
-				// If there was no ilde or active servers, get the smallest core capable server.
+				// If there was no ilde or active servers, get the largest core capable server.
 				if (chosenServer == null) {
 					chosenServer = servers.stream().filter(s -> s.State.equals("inactive")).findFirst().orElse(null);
 				}
