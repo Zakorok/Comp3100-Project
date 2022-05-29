@@ -1,10 +1,10 @@
-import java.io.*;
-import java.net.*;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
-import javax.print.attribute.standard.JobName;
+/*
+This is a class that holds information about servers
+It also can calculate when it would be avaliable for the next job
+*/
 
 public class ServerInfo {
 	// From ds-sim formatted
@@ -34,11 +34,14 @@ public class ServerInfo {
 		this.currentCores = this.TotalCores;
 	}
 
+	// Sends the sechedule job command to the server
 	public void ScheduleJob(JobInfo job) throws Exception {
 		MyClient.SendMessage("SCHD " + job.JobID + " " + this.Type + " " + this.ID);
 	}
 
-	public int ListJobs(int requiredCores) {
+	// Calculates the soonest avaliable time that it would be for this server to
+	// take another job with those cores.
+	public int CalcAvaliableForJob(int requiredCores) {
 		try {
 			List<JobInfo> runningJobs = new ArrayList<JobInfo>();
 			List<JobInfo> waitingJobs = new ArrayList<JobInfo>();
@@ -48,6 +51,8 @@ public class ServerInfo {
 			int numJobs = Integer.parseInt(info[1]);
 			MyClient.SendMessage("OK");
 
+			// Split the list of jobs into running and waiting they need to be treated
+			// differently,
 			for (int i = 0; i < numJobs; i++) {
 				JobInfo listedJob = new JobInfo(MyClient.SplitRead(" "), this.ID);
 				if (listedJob.StartTime == -1) {
@@ -68,10 +73,11 @@ public class ServerInfo {
 				// Calculate when a waiting job is next going to run
 				if (waitingJobs.size() == 0) {
 					if (currentCores >= requiredCores) {
-						System.out.println("Server: " + this + " Estimated Finish Time: " + nextAvaliableTime);
 						return nextAvaliableTime;
 					}
 				} else {
+					// Preteneds to implement job if they can be on core count.
+					// Adds their time to the nextAvaliable time.
 					List<JobInfo> future = new ArrayList<JobInfo>();
 					for (JobInfo waitingJob : waitingJobs) {
 						if (waitingJob.Core <= currentCores) {
@@ -88,12 +94,8 @@ public class ServerInfo {
 
 		} catch (Exception ex) {
 			System.out.println(ex);
+			// If something goes wrong
 			return 1000000000;
 		}
-	}
-
-	@Override
-	public String toString() {
-		return this.ID + " --- " + this.Type;
 	}
 }

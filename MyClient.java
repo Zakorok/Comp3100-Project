@@ -1,12 +1,8 @@
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Hashtable;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
-
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
@@ -16,11 +12,11 @@ import org.w3c.dom.Element;
 public class MyClient {
 	private static BufferedReader in;
 	private static DataOutputStream out;
-	
+
 	public static void main(String[] args) {
 		try {
-			
-			// Get server boot times
+
+			// Get server boot times from ds-sustem.xml
 			Hashtable<String, Integer> serverBoot = new Hashtable<String, Integer>();
 			File xmlFile = new File("ds-system.xml");
 			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(xmlFile);
@@ -32,23 +28,24 @@ public class MyClient {
 				serverBoot.put(eElement.getAttribute("type"), Integer.parseInt(eElement.getAttribute("bootupTime")));
 			}
 
-			// Set up client.
+			// Set up client
 			Socket socket = new Socket("localhost", 50000);
 			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			out = new DataOutputStream(socket.getOutputStream());
 
+			// Authenticate
 			SendMessage("HELO");
 			ReadServer();
 
-			// Authenticate
 			SendMessage("AUTH cassandra");
 			ReadServer();
 
-			// Main ----------------------------------
+			// Main
 			SendMessage("REDY");
 			JobInfo currentJob = new JobInfo(SplitRead(" "));
 
 			while (!currentJob.None()) {
+				// Collect all capable servers.
 				SendMessage("GETS Capable " + currentJob.Core + " " + currentJob.Memory + " " + currentJob.Disk);
 				String[] info = SplitRead(" ");
 				int numServers = Integer.parseInt(info[1]);
@@ -60,38 +57,48 @@ public class MyClient {
 				}
 				SendMessage("OK");
 				ReadServer();
-				//Sort servers by waiting jobs 
+
+				// Sort servers by waiting jobs then running jobs then core size.
 				servers = (ArrayList<ServerInfo>) servers.stream().sorted((left, right) -> {
 					int result = left.wJobs - right.wJobs;
-					if(result == 0){
+					if (result == 0) {
+						result = left.rJobs - right.rJobs;
+					}
+					if (result == 0) {
 						result = left.TotalCores - right.TotalCores;
 					}
 					return result;
 				}).collect(Collectors.toList());
 
+				// Always put it to the first idle job by the smallest core
 				ServerInfo chosenServer = servers.stream().filter(s -> s.State.equals("idle")).findFirst().orElse(null);
+
+				// Choose an active server that will execute a new job earilest
+				// Or choose a new server if it would be faster to boot one.
 				if (chosenServer == null) {
 					final int requiredCores = currentJob.Core;
-
-					var result = servers.stream().filter(s -> s.State.equals("active"))
-							.min((s1, s2) -> s1.ListJobs(requiredCores) - s2.ListJobs(requiredCores));
+					// Servest with the smallest
+					var result = servers.stream().filter(s -> s.State.equals("active")).min(
+							(s1, s2) -> s1.CalcAvaliableForJob(requiredCores) - s2.CalcAvaliableForJob(requiredCores));
 					if (result.isPresent()) {
 						chosenServer = result.get();
-						// If it would be lest time to boot a new server
-						int estimatedCompetedTime = chosenServer.ListJobs(requiredCores);
+						// If it would be less time to boot a new server
+						int estimatedCompetedTime = chosenServer.CalcAvaliableForJob(requiredCores);
 						for (String key : serverBoot.keySet()) {
-							if (serverBoot.get(key) < estimatedCompetedTime) {
+							if (serverBoot.get(key) < estimatedCompetedTime) { // Get boot time from the xml parse.
 								chosenServer = servers.stream()
 										.filter(s -> s.Type.equals(key) && s.State.equals("inactive")).findFirst()
 										.orElse(null);
-										break;
+								break;
 							}
 						}
 					}
 				}
+				// If there was no ilde or active servers, get the smallest core capable server.
 				if (chosenServer == null) {
 					chosenServer = servers.get(0);
 				}
+
 				chosenServer.ScheduleJob(currentJob);
 
 				SendMessage("OK");
@@ -99,11 +106,11 @@ public class MyClient {
 
 				currentJob = ReadInJob();
 
+				// Nothing to do when jobs are completed
 				while (currentJob.isComplete()) {
 					currentJob = ReadInJob();
 				}
 			}
-			// ---------------------------------------
 
 			// Terminate
 			SendMessage("QUIT");
@@ -115,6 +122,8 @@ public class MyClient {
 			System.out.println("Error: \n" + ex);
 		}
 	}
+
+	// Readies and reads the response of a server when expecting a job
 	private static JobInfo ReadInJob() throws Exception {
 		SendMessage("REDY");
 		String[] jobArray = SplitRead(" ");
@@ -124,21 +133,22 @@ public class MyClient {
 		return new JobInfo(jobArray);
 	}
 
+	// Basic use of sending a message to the server
 	public static void SendMessage(String input) throws Exception {
 		out.write((input + "\n").getBytes());
 		out.flush();
 	}
 
-	// Use when only when expecting a result.
+	// Basic use of getting the server's response.
 	public static String ReadServer() throws Exception {
 		String str = "" + in.readLine();
 		if (str.isEmpty()) {
-			str = "" + in.readLine(); // TODO: Understand this issue
+			str = "" + in.readLine();
 		}
-		System.out.println("Server out: " + str);
 		return str;
 	}
 
+	// Split the server into an array based on regular expression.
 	public static String[] SplitRead(String regex) throws Exception {
 		return ReadServer().split(regex);
 	}

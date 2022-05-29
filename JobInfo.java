@@ -1,4 +1,10 @@
+/*
+This class holds job data and has a few helper functions to describe the job
+It handles JOBN, JCPL, NONE and listing jobs from a server.
+
+*/
 public class JobInfo {
+    // Normal Jobs: JOBN
     public String ServerResponse;
     public int SubmitTime;
     public int JobID;
@@ -7,19 +13,10 @@ public class JobInfo {
     public int Memory;
     public int Disk;
 
-    // If the job is complete
-    public int EndTime;
-    public String SeverType;
-    public String ServerID;
-
     public JobInfo(String[] info) {
         ServerResponse = info[0];
         if (!None()) {
-            if (isComplete()) {
-                EndTime = Integer.parseInt(info[1]);
-                JobID = Integer.parseInt(info[2]);
-                ServerID = info[3];
-            } else {
+            if (!isComplete()) {
                 SubmitTime = Integer.parseInt(info[1]);
                 JobID = Integer.parseInt(info[2]);
                 EstRuntime = Integer.parseInt(info[3]);
@@ -30,6 +27,25 @@ public class JobInfo {
         }
     }
 
+    // Notifies if there is no jobs left
+    public boolean None() {
+        if (ServerResponse.equals("NONE")) {
+            return true;
+        }
+        return false;
+    }
+
+    // Notifies if this is just a job complete message
+    public boolean isComplete() {
+        if (ServerResponse.equals("JCPL")) {
+            return true;
+        }
+        return false;
+    }
+
+    // If the Job is being listed from server.
+    public String SeverType;
+    public String ServerID;
     public String Status;
     public int StartTime;
 
@@ -45,24 +61,11 @@ public class JobInfo {
         this.ServerID = serverID;
     }
 
+    // Caluclates the estimated completion time.
     public int EstCompletedTime(int calculatedStartTime) {
         if (StartTime != -1 || calculatedStartTime == 0) {
             return this.StartTime + this.EstRuntime;
         }
         return calculatedStartTime + this.EstRuntime;
-    }
-
-    public boolean None() {
-        if (ServerResponse.equals("NONE")) {
-            return true;
-        }
-        return false;
-    }
-
-    public boolean isComplete() {
-        if (ServerResponse.equals("JCPL")) {
-            return true;
-        }
-        return false;
     }
 }
