@@ -16,18 +16,6 @@ public class MyClient {
 	public static void main(String[] args) {
 		try {
 
-			// Get server boot times from ds-sustem.xml
-			Hashtable<String, Integer> serverBoot = new Hashtable<String, Integer>();
-			File xmlFile = new File("ds-system.xml");
-			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(xmlFile);
-			doc.getDocumentElement().normalize();
-			NodeList nList = doc.getElementsByTagName("server");
-			for (int i = 0; i < nList.getLength(); i++) {
-				Node nNode = nList.item(i);
-				Element eElement = (Element) nNode;
-				serverBoot.put(eElement.getAttribute("type"), Integer.parseInt(eElement.getAttribute("bootupTime")));
-			}
-
 			// Set up client
 			Socket socket = new Socket("localhost", 50000);
 			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -60,19 +48,26 @@ public class MyClient {
 
 				// Sort servers by waiting jobs then running jobs then core size.
 				servers = (ArrayList<ServerInfo>) servers.stream().sorted((left, right) -> {
-					int result = left.wJobs - right.wJobs;
+					int result = right.TotalCores - left.TotalCores;
 					if (result == 0) {
-						result = left.rJobs - right.rJobs;
+						result = left.wJobs - right.wJobs;
 					}
 					if (result == 0) {
-						result = left.TotalCores - right.TotalCores;
+						result = left.rJobs - right.rJobs;
 					}
 					return result;
 				}).collect(Collectors.toList());
 
-				// Always put it to the first idle job by the smallest core
+				// Always put it to the first idle job by the largest core
 				ServerInfo chosenServer = servers.stream().filter(s -> s.State.equals("idle")).findFirst().orElse(null);
 
+				if (chosenServer == null) {
+					chosenServer = servers.stream().filter(s -> s.wJobs == 0).findFirst().orElse(null);
+				}
+
+				if (chosenServer == null) {
+					chosenServer = servers.stream().filter(s -> s.wJobs == 1).findFirst().orElse(null);
+				}
 				// Choose an active server that will execute a new job earilest
 				// Or choose a new server if it would be faster to boot one.
 				if (chosenServer == null) {
@@ -82,21 +77,17 @@ public class MyClient {
 							(s1, s2) -> s1.CalcAvaliableForJob(requiredCores) - s2.CalcAvaliableForJob(requiredCores));
 					if (result.isPresent()) {
 						chosenServer = result.get();
-						// If it would be less time to boot a new server
-						int estimatedCompetedTime = chosenServer.CalcAvaliableForJob(requiredCores);
-						for (String key : serverBoot.keySet()) {
-							if (serverBoot.get(key) < estimatedCompetedTime) { // Get boot time from the xml parse.
-								chosenServer = servers.stream()
-										.filter(s -> s.Type.equals(key) && s.State.equals("inactive")).findFirst()
-										.orElse(null);
-								break;
+						if (servers.stream().anyMatch(s -> s.State.equals("inactive"))) {
+							if (result.get().CalcAvaliableForJob(requiredCores) > currentJob.SubmitTime
+									+ currentJob.EstRuntime) {
+								chosenServer = null; // Could attempt a migration here.
 							}
 						}
 					}
 				}
 				// If there was no ilde or active servers, get the smallest core capable server.
 				if (chosenServer == null) {
-					chosenServer = servers.get(0);
+					chosenServer = servers.stream().filter(s -> s.State.equals("inactive")).findFirst().orElse(null);
 				}
 
 				chosenServer.ScheduleJob(currentJob);

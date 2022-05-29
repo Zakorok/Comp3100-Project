@@ -37,6 +37,7 @@ public class ServerInfo {
 	// Sends the sechedule job command to the server
 	public void ScheduleJob(JobInfo job) throws Exception {
 		MyClient.SendMessage("SCHD " + job.JobID + " " + this.Type + " " + this.ID);
+		System.out.println("SCHD " + job.JobID + " " + this.Type + " " + this.ID);
 	}
 
 	// Calculates the soonest avaliable time that it would be for this server to
